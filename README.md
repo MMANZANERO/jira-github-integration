@@ -145,12 +145,12 @@ The `issue-created` label is added at the end of the automation to prevent the s
 
 ---
 
-## 3. Create a branch for each Jira component
+## 3. Create a loop for each Jira component
 
 Immediately after the duplicate-prevention condition, add:
 
 ```text
-Branch rule / related issues → For each: Smart value
+Branch rule / → Advanced branching
 ```
 
 Configure the branch as follows:
@@ -246,7 +246,7 @@ X-GitHub-Api-Version: 2022-11-28
 
 Store the `Authorization` value as a secure or hidden value in Jira Automation.
 
-> Do not write the GitHub token directly in this README or include it in an exported automation file.
+> Do not write the GitHub token directly, add it as a Secret.
 
 ### Custom data
 
@@ -294,7 +294,7 @@ Waiting for the response is required because subsequent actions use the issue nu
 
 > The `agent_assignment` object contains configuration for the coding agent. Explicitly assigning Copilot as the issue assignee is handled separately by the optional step described below.
 >
-> If GitHub returns a validation error for `agent_assignment`, verify that this property is supported by the GitHub API version and features enabled for your organization.
+> If GitHub returns a validation error for `agent_assignment`, verify that this property is supported by the GitHub API version and features enabled.
 
 ---
 
@@ -412,12 +412,6 @@ After the GitHub issue has been created, add:
 Action → Add comment to work item
 ```
 
-Depending on the Jira version, this action may appear as:
-
-```text
-Action → Comment on issue
-```
-
 ### Comment when Copilot assignment is enabled
 
 ```text
@@ -456,12 +450,6 @@ As the final action inside the component branch, add:
 
 ```text
 Action → Edit work item fields
-```
-
-Depending on the Jira version, this action may appear as:
-
-```text
-Action → Edit issue
 ```
 
 Open the **Additional fields** section and enter:
@@ -556,33 +544,8 @@ If processing every component successfully is mandatory, consider moving the fin
 ## Security recommendations
 
 - Store the GitHub token as a secure value in Jira Automation.
-- Do not include the token in this document.
-- Do not include the token in exported automation files.
 - Grant the token only the permissions required to create and assign issues.
 - Use a dedicated automation account when possible.
-- Define an expiration and rotation policy for the token.
-- Test the automation with a non-production repository first.
-
----
-
-## Validation checklist
-
-Before enabling the rule in production, verify the following:
-
-1. The Jira trigger runs when a work item is assigned.
-2. Only the supported work item types pass the first condition.
-3. At least one Jira component is required.
-4. The work item must have an assignee.
-5. Work items containing the `issue-created` label are ignored.
-6. Each Jira component name matches an existing GitHub repository.
-7. The `formattedDescription` variable produces valid GitHub Markdown.
-8. The GitHub issue is created in the expected repository.
-9. The `bug` label exists in every target repository.
-10. The GitHub response contains the issue number and HTML URL.
-11. If enabled, Copilot can be assigned to the issue.
-12. The Jira comment contains the correct repository and GitHub issue URL.
-13. The `issue-created` label is added after processing.
-14. Reassigning the Jira work item does not create duplicate GitHub issues.
 
 ---
 

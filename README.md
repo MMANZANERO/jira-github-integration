@@ -1,163 +1,252 @@
-# Jira Automation: Create a GitHub Issue and Assign Copilot
+# Jira Automation: Create a GitHub Issue and Optionally Assign Copilot
 
-This automation creates a GitHub issue when a Jira issue is assigned. It uses each Jira component as a GitHub repository name and then assigns the issue to GitHub Copilot coding agent.
+This Jira Automation rule creates a GitHub issue whenever a Jira issue is assigned.
+
+Each Jira component is treated as the name of a GitHub repository. Optionally, the newly created GitHub issue can be assigned to the GitHub Copilot coding agent.
+
+## Automation flow
+
+```text
+Issue assigned
+├── Check the issue type
+├── Check that at least one component is present
+├── Check that an assignee is present
+├── Check that the "issue-created" label is not present
+└── For each component
+    ├── Create a GitHub issue
+    ├── Save the GitHub issue number and URL
+    ├── Optional: assign GitHub Copilot
+    ├── Comment on the Jira issue
+    └── Add the "issue-created" label
+```
 
 ## Requirements
 
-- Jira component names must match the GitHub repository names.
-- The GitHub token must have access to the target repositories and permission to manage issues.
+### General requirements
+
+- Jira component names must exactly match the corresponding GitHub repository names.
+- The GitHub token must have access to the target repositories.
+- The token must have permission to create and manage issues.
+- The token must be stored as a secure value in Jira Automation.
+- The `bug` label must exist in every target repository if it is included in the request.
+
+### Optional GitHub Copilot requirements
+
+The following requirements only apply if GitHub issues should be assigned automatically to the GitHub Copilot coding agent:
+
+- GitHub Copilot coding agent must be enabled for the organization.
+- GitHub Copilot coding agent must be enabled for the target repositories.
 - The account associated with the token must have access to GitHub Copilot coding agent.
-- Copilot coding agent must be enabled for the organization and repositories.
-- Store the token as a secure value in Jira Automation.
+- GitHub Copilot must be available as an assignee in the target repository.
 
-## Automation structure
+> **Important:** API permissions alone do not grant access to GitHub Copilot.
 
-```
-Issue assigned
-├── Check issue type
-├── Check components
-├── Check assignee
-├── Check that "issue-created" is not present
-└── For each component
-    ├── Create GitHub issue
-    ├── Save GitHub issue number and URL
-    ├── Assign Copilot
-    ├── Comment on Jira
-    └── Add "issue-created" label
-```
+---
 
-The original rule uses the Issue assigned trigger and iterates over {{issue.components.name}}. [1]
+## 1. Create the trigger
 
-## 1. Trigger
+Create a Jira Automation rule with the following trigger:
 
-Create a Jira Automation rule with:
-
+```text
 Trigger → Issue assigned
+```
 
-## 2. Conditions
+---
 
-Add the following conditions:
+## 2. Add the conditions
 
-### Allowed issue types
+### 2.1. Check the issue type
 
+Add:
+
+```text
 Condition → Issue fields condition
+```
 
-- Field: Issue type
-- Condition: Is one of
-- Value: Select the supported issue types
+Configure the condition as follows:
 
-The exported rule uses issue-type IDs 10006, 10100, 10101, and 10007. [1]
+- **Field:** Issue type
+- **Condition:** Is one of
+- **Value:** Select the supported issue types
 
-### Component is present
+If you are importing an existing rule, verify that the issue type IDs match the issue types in your Jira instance. IDs may differ between environments.
 
+### 2.2. Check that a component is present
+
+Add:
+
+```text
 Condition → Advanced compare condition
+```
 
-- First value: {{issue.components}}
-- Condition: Does not equal
-- Second value: Leave empty
+Configure:
 
-### Assignee is present
+- **First value:** `{{issue.components}}`
+- **Condition:** Does not equal
+- **Second value:** Leave empty
 
+### 2.3. Check that an assignee is present
+
+Add:
+
+```text
 Condition → Issue fields condition
+```
 
-- Field: Assignee
-- Condition: Is not empty
+Configure:
 
-### Prevent duplicates
+- **Field:** Assignee
+- **Condition:** Is not empty
 
+### 2.4. Prevent duplicate executions
+
+Add:
+
+```text
 Condition → Advanced compare condition
+```
 
-- First value: {{issue.labels}}
-- Condition: Does not contain
-- Second value: issue-created
+Configure:
 
-The issue-created label is used by the exported rule to prevent duplicate executions. [1]
+- **First value:** `{{issue.labels}}`
+- **Condition:** Does not contain
+- **Second value:** `issue-created`
 
-## 3. Branch over repositories
+The `issue-created` label will be added after the automation completes successfully.
+
+---
+
+## 3. Create a branch for each repository
 
 Add an advanced branch:
 
-- Smart value: {{issue.components.name}}
-- Variable name: repository
+```text
+Branch rule / related issues → Advanced branching
+```
 
-All subsequent actions must be added inside this branch. Each component name will be treated as a repository name. [1]
+Configure:
+
+- **Smart value:** `{{issue.components.name}}`
+- **Variable name:** `repository`
+
+All subsequent actions must be added inside this branch.
+
+Each Jira component will be treated as a GitHub repository name.
+
+> **Example:** A Jira component named `payment-service` maps to a GitHub repository named `payment-service`.
+
+---
 
 ## 4. Create the GitHub issue
 
 Add:
 
+```text
 Action → Send web request
+```
 
-**Request**
+### Request
 
-- Method: POST
-- URL: https://api.github.com/repos/OttoPaymentHub/{{repository}}/issues
-- Body type: Custom data
+- **Method:** `POST`
+- **URL:** `https://api.github.com/repos/GITHUB_ORG/{{repository}}/issues`
+- **Body type:** Custom data
 
-Replace OttoPaymentHub with your GitHub organization if necessary.
+Replace `GITHUB_ORG` with the name of your GitHub organization.
 
-**Headers**
+For example:
 
-- Accept: application/vnd.github+json
-- X-GitHub-Api-Version: 2026-03-10
-- Authorization: ******
+```text
+https://api.github.com/repos/OttoPaymentHub/{{repository}}/issues
+```
 
-Mark Authorization as a secure value.
+### Headers
 
-**Body**
+```text
+Accept: application/vnd.github+json
+Authorization: Bearer YOUR_GITHUB_TOKEN
+X-GitHub-Api-Version: 2022-11-28
+```
+
+Configure the `Authorization` header as a secure or hidden value.
+
+> Never write the token directly in this README or include it in an exported Jira Automation file.
+
+### Request body
 
 ```json
 {
   "title": "[{{issue.key}}] {{issue.summary.jsonEncode}}",
-  "body": "### Ticket description\n\n{{issue.description.jsonEncode}}\n\n### Instructions\n\nPlease analyze this issue, implement the required changes, run the relevant tests, and create a draft pull request.",
+  "body": "### Ticket description
+
+{{issue.description.jsonEncode}}
+
+### Instructions
+
+Please analyze this issue, implement the required changes, run the relevant tests, and create a draft pull request.",
   "labels": [
     "bug"
   ]
 }
 ```
 
-**Enable**
+### Execution options
 
-- Wait for response: Yes
-- Continue on error: No
+- **Wait for response:** Yes
+- **Continue on error:** No
 
-The exported rule creates an issue through this GitHub endpoint and uses the Jira component as the repository name. [1]
+> If the `bug` label does not exist or cannot be applied by the token, GitHub may reject the request. Remove the `labels` property if the label is not required.
+
+---
 
 ## 5. Save the GitHub response
 
-Immediately after creating the issue, add two Create variable actions.
+Immediately after creating the issue, add two `Create variable` actions.
 
-### Issue number
+These values must be saved before sending another web request because a subsequent request will replace `{{webhookResponse}}`.
 
-- Variable name: githubIssueNumber
-- Value: {{webhookResponse.body.number}}
+### 5.1. Save the issue number
 
-### Issue URL
+- **Variable name:** `githubIssueNumber`
+- **Value:** `{{webhookResponse.body.number}}`
 
-- Variable name: githubIssueUrl
-- Value: {{webhookResponse.body.html_url}}
+### 5.2. Save the issue URL
 
-These values must be saved before sending another web request because {{webhookResponse}} will be replaced.
+- **Variable name:** `githubIssueUrl`
+- **Value:** `{{webhookResponse.body.html_url}}`
 
-## 6. Assign Copilot coding agent
+---
 
-Add another:
+## 6. Optional: Assign the issue to GitHub Copilot
 
+> **This entire section is optional.**
+>
+> If you do not want to assign GitHub issues automatically to the Copilot coding agent, skip this step and continue with section 7.
+
+Add:
+
+```text
 Action → Send web request
+```
 
-**Request**
+### Request
 
-- Method: POST
-- URL: https://api.github.com/repos/OttoPaymentHub/{{repository}}/issues/{{githubIssueNumber}}/assignees
-- Body type: Custom data
+- **Method:** `POST`
+- **URL:** `https://api.github.com/repos/GITHUB_ORG/{{repository}}/issues/{{githubIssueNumber}}/assignees`
+- **Body type:** Custom data
 
-**Headers**
+Replace `GITHUB_ORG` with the name of your GitHub organization.
 
-- Accept: application/vnd.github+json
-- X-GitHub-Api-Version: 2026-03-10
-- Authorization: ******
+### Headers
 
-**Body**
+```text
+Accept: application/vnd.github+json
+Authorization: Bearer YOUR_GITHUB_TOKEN
+X-GitHub-Api-Version: 2022-11-28
+```
+
+Configure the `Authorization` header as a secure or hidden value.
+
+### Request body
 
 ```json
 {
@@ -167,22 +256,46 @@ Action → Send web request
 }
 ```
 
-**Enable**
+> Confirm the correct Copilot assignee login for your GitHub environment. Depending on the GitHub configuration and API behavior, the displayed account name may differ.
 
-- Wait for response: Yes
-- Continue on error: No
+### Execution options
 
-The account associated with the token must have access to GitHub Copilot coding agent. API permissions alone do not provide Copilot access.
+Recommended configuration if Copilot assignment is optional:
 
-## 7. Comment on the Jira issue
+- **Wait for response:** Yes
+- **Continue on error:** Yes
+
+Setting **Continue on error** to **Yes** ensures that a Copilot assignment failure does not prevent the Jira comment and completion label from being added.
+
+If Copilot assignment must succeed before the automation can continue, use:
+
+- **Wait for response:** Yes
+- **Continue on error:** No
+
+### Troubleshooting the Copilot assignment
+
+If the assignment fails, verify that:
+
+1. GitHub Copilot coding agent is enabled for the organization.
+2. GitHub Copilot coding agent is enabled for the repository.
+3. The account associated with the token has access to Copilot.
+4. Copilot is available as an assignee in the repository.
+5. The token has permission to manage repository issues.
+6. The assignee login used in the request is correct.
+
+---
+
+## 7. Add a comment to the Jira issue
 
 Add:
 
+```text
 Action → Comment on issue
-
-**Comment:**
-
 ```
+
+### Comment when Copilot assignment is enabled
+
+```text
 A GitHub issue was created in the {{repository}} repository:
 
 {{githubIssueUrl}}
@@ -190,17 +303,33 @@ A GitHub issue was created in the {{repository}} repository:
 GitHub Copilot coding agent was assigned automatically.
 ```
 
+### Comment when Copilot assignment is disabled
+
+```text
+A GitHub issue was created in the {{repository}} repository:
+
+{{githubIssueUrl}}
+```
+
+> If Copilot assignment uses **Continue on error: Yes**, avoid stating that Copilot was assigned unless the response was validated successfully.
+
+---
+
 ## 8. Add the completion label
 
 Add:
 
+```text
 Action → Edit issue
+```
 
 Add the following label:
 
-- issue-created
+```text
+issue-created
+```
 
-Alternatively, use advanced JSON:
+Alternatively, use the advanced JSON configuration:
 
 ```json
 {
@@ -214,11 +343,83 @@ Alternatively, use advanced JSON:
 }
 ```
 
-The exported automation adds this label after creating the GitHub issue and Jira comment. [1]
+This label indicates that the Jira issue has already been processed and helps prevent duplicate executions.
 
-## Final notes
+---
 
-- Test the rule with a non-production repository first.
-- The bug label must exist in each target repository.
-- Do not store the GitHub token directly in this README or in the exported automation file.
-- If Copilot assignment fails, confirm that Copilot coding agent is enabled and available as an assignee in the repository.
+## Multiple components
+
+If a Jira issue contains multiple components:
+
+- One GitHub issue will be created in each corresponding repository.
+- The `repository` variable will contain a different repository name in each branch iteration.
+- One Jira comment will be added for each GitHub issue.
+- If Copilot assignment is enabled, each GitHub issue will be assigned separately.
+
+Ensure that every Jira component represents a valid and accessible GitHub repository. Otherwise, GitHub will return an error for the corresponding branch.
+
+---
+
+## Security recommendations
+
+- Do not store the GitHub token directly in this file.
+- Do not include the token in repositories or exported automation files.
+- Store the `Authorization` header as a secure value in Jira Automation.
+- Grant the token only the permissions required by this automation.
+- Use a dedicated automation account where possible.
+- Define an expiration and rotation policy for the token.
+- Test token access using a non-production repository first.
+
+---
+
+## Recommended test procedure
+
+Before enabling the rule in production:
+
+1. Use a non-production Jira project.
+2. Use a non-production GitHub repository.
+3. Confirm that the Jira component name matches the repository name.
+4. Assign a test Jira issue.
+5. Verify that the GitHub issue is created.
+6. Verify that its number and URL are saved correctly.
+7. If enabled, verify that Copilot is assigned.
+8. Confirm that the expected comment is added to Jira.
+9. Confirm that the `issue-created` label is added.
+10. Reassign the Jira issue and confirm that no duplicate issues are created.
+
+---
+
+## Troubleshooting
+
+### GitHub returns `401 Unauthorized`
+
+- Confirm that the token is valid.
+- Check the format of the `Authorization` header.
+- Verify that the token has not expired.
+
+### GitHub returns `403 Forbidden`
+
+- Check the token permissions.
+- Confirm that the account has access to the repository.
+- Review the organization's security and token policies.
+
+### GitHub returns `404 Not Found`
+
+- Check the GitHub organization name.
+- Confirm that the Jira component matches the repository name.
+- Verify that the token can access private repositories.
+
+### Copilot assignment fails
+
+- Confirm that Copilot coding agent is enabled.
+- Verify that Copilot is available as an assignee.
+- Check that the account associated with the token has Copilot access.
+- Confirm the correct Copilot assignee login.
+- Use **Continue on error: Yes** if Copilot assignment should remain optional.
+
+### Duplicate GitHub issues are created
+
+- Ensure that the `issue-created` condition is evaluated before entering the branch.
+- Verify that the completion label is added successfully.
+- Check whether multiple rule executions are running concurrently.
+- Review the Jira Automation audit log for overlapping executions.

@@ -1,4 +1,4 @@
-# Jira Automation: Create a GitHub Issue and Optionally Assign Copilot
+# Jira Automation Pipeline
 
 This Jira Automation rule creates a GitHub issue when a Jira work item is assigned.
 
@@ -28,11 +28,9 @@ Work item assigned
 ### General requirements
 
 - Jira component names must exactly match the corresponding GitHub repository names.
-- The target repositories must belong to the `OttoPaymentHub` GitHub organization.
 - The GitHub token must have access to the target repositories.
 - The token must have permission to create and manage issues.
 - The token must be stored as a secure value in Jira Automation.
-- The `bug` label must exist in every target repository.
 - The default branch used by the automation is `main`.
 
 ### Optional GitHub Copilot requirements
@@ -75,12 +73,6 @@ Add:
 
 ```text
 Condition → Work item fields condition
-```
-
-Depending on the Jira version, this action may appear as:
-
-```text
-Condition → Issue fields condition
 ```
 
 Configure it as follows:
@@ -264,10 +256,7 @@ Please analyze the described problem and generate a draft Pull Request with the 
     "custom_instructions": "Please analyze the described problem and generate a draft Pull Request with the solution.",
     "custom_agent": "",
     "model": ""
-  },
-  "labels": [
-    "bug"
-  ]
+  }
 }
 ```
 
@@ -581,7 +570,6 @@ Check that:
 
 Check that:
 
-- The `bug` label exists in the target repository.
 - The request body contains valid JSON.
 - The issue title and body contain valid encoded values.
 - The `agent_assignment` property is supported by the API and enabled features.

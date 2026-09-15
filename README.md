@@ -6,6 +6,8 @@ Each Jira component is treated as the name of a repository in the `OttoPaymentHu
 
 The GitHub issue can also be assigned to the GitHub Copilot coding agent through an optional step.
 
+![alt text](https://github.com/MMANZANERO/jira-github-integration/blob/main/automation_image.png "Automation Image")
+
 ## Automation flow
 
 ```text
